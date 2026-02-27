@@ -7,7 +7,23 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1B89D3C8B99684C79BE6C001 /* RecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392CF431F24B3ADE70C3BCA5 /* RecordingManager.swift */; };
+		3A2D966D5223023CFC316A69 /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8D85F11B9A012DD0AE0B1B3 /* NetworkManager.swift */; };
+		58F4EDBFE50A46E917AA7D3D /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D6DAF581F675380C79C8237 /* APIConfig.swift */; };
+		5B9D2831F37A422EBB84530E /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7FC95BF4D671B48EFB5FD4 /* AudioRecorder.swift */; };
+		68B099CB3CDE3FC42C1D270E /* CoreModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26EEDC399D9EB18D1766DDE1 /* CoreModels.swift */; };
+		6C1079887F73EF43C8E07347 /* WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0686A467C8AFB9C1F4AD5AD6 /* WatchConnectivityManager.swift */; };
+		6E0B1D9FD12532C2E06F7E6D /* WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0686A467C8AFB9C1F4AD5AD6 /* WatchConnectivityManager.swift */; };
+		73CBF1E9007F82D997B406EE /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D6DAF581F675380C79C8237 /* APIConfig.swift */; };
+		8FFC78BFA0ABFB8FF477FE51 /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8D85F11B9A012DD0AE0B1B3 /* NetworkManager.swift */; };
+		A1AA204DA2DAFCB27809ACBC /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7FC95BF4D671B48EFB5FD4 /* AudioRecorder.swift */; };
+		C3796CC4A62073F2473A2A12 /* RecordingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B2D023BC0B558123FB57F7 /* RecordingDetailView.swift */; };
+		CEF97639349EED0C1DF9964A /* AppGroupContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E07AB6F8D96D6C194DD5BF /* AppGroupContainer.swift */; };
+		CFD7DAAEED5A47A7C3056BC9 /* CoreModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26EEDC399D9EB18D1766DDE1 /* CoreModels.swift */; };
+		DF052CCA9BBA4826A329EE7B /* RecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392CF431F24B3ADE70C3BCA5 /* RecordingManager.swift */; };
 		E30C15A82F5029400087DEB3 /* suisuinian Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = E30C15A72F5029400087DEB3 /* suisuinian Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		EC4A5877DC1848C7B46CDBE1 /* WatchRecordingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8710A7C6915B24AFBA9FDEA /* WatchRecordingsView.swift */; };
+		FD67A0A954956318E26BC3EA /* AppGroupContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E07AB6F8D96D6C194DD5BF /* AppGroupContainer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -35,6 +51,17 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0686A467C8AFB9C1F4AD5AD6 /* WatchConnectivityManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WatchConnectivityManager.swift; sourceTree = "<group>"; };
+		26EEDC399D9EB18D1766DDE1 /* CoreModels.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CoreModels.swift; sourceTree = "<group>"; };
+		392CF431F24B3ADE70C3BCA5 /* RecordingManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecordingManager.swift; sourceTree = "<group>"; };
+		4699ECFFCECB10D806A3354C /* suisuinian.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = suisuinian.entitlements; path = suisuinian/suisuinian.entitlements; sourceTree = "<group>"; };
+		7B7FC95BF4D671B48EFB5FD4 /* AudioRecorder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
+		99B2D023BC0B558123FB57F7 /* RecordingDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RecordingDetailView.swift; path = suisuinian/RecordingDetailView.swift; sourceTree = "<group>"; };
+		9D6DAF581F675380C79C8237 /* APIConfig.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
+		A9E07AB6F8D96D6C194DD5BF /* AppGroupContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppGroupContainer.swift; path = Shared/AppGroupContainer.swift; sourceTree = "<group>"; };
+		B8D85F11B9A012DD0AE0B1B3 /* NetworkManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = NetworkManager.swift; sourceTree = "<group>"; };
+		C8710A7C6915B24AFBA9FDEA /* WatchRecordingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = WatchRecordingsView.swift; path = "suisuinian Watch App/WatchRecordingsView.swift"; sourceTree = "<group>"; };
+		D08D8868E538B60F57D78391 /* suisuinianwatch.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = suisuinianwatch.entitlements; path = "suisuinian Watch App/suisuinianwatch.entitlements"; sourceTree = "<group>"; };
 		E30C159A2F50293E0087DEB3 /* suisuinian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = suisuinian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E30C15A72F5029400087DEB3 /* suisuinian Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "suisuinian Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -42,11 +69,15 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E30C159C2F50293E0087DEB3 /* suisuinian */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = suisuinian;
 			sourceTree = "<group>";
 		};
 		E30C15AB2F5029400087DEB3 /* suisuinian Watch App */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = "suisuinian Watch App";
 			sourceTree = "<group>";
 		};
@@ -70,12 +101,31 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		CFF15120348E95E94DBA6426 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				B8D85F11B9A012DD0AE0B1B3 /* NetworkManager.swift */,
+				9D6DAF581F675380C79C8237 /* APIConfig.swift */,
+				0686A467C8AFB9C1F4AD5AD6 /* WatchConnectivityManager.swift */,
+				7B7FC95BF4D671B48EFB5FD4 /* AudioRecorder.swift */,
+				26EEDC399D9EB18D1766DDE1 /* CoreModels.swift */,
+				392CF431F24B3ADE70C3BCA5 /* RecordingManager.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
 		E30C15912F50293E0087DEB3 = {
 			isa = PBXGroup;
 			children = (
 				E30C159C2F50293E0087DEB3 /* suisuinian */,
 				E30C15AB2F5029400087DEB3 /* suisuinian Watch App */,
 				E30C159B2F50293E0087DEB3 /* Products */,
+				CFF15120348E95E94DBA6426 /* Shared */,
+				99B2D023BC0B558123FB57F7 /* RecordingDetailView.swift */,
+				C8710A7C6915B24AFBA9FDEA /* WatchRecordingsView.swift */,
+				4699ECFFCECB10D806A3354C /* suisuinian.entitlements */,
+				D08D8868E538B60F57D78391 /* suisuinianwatch.entitlements */,
+				A9E07AB6F8D96D6C194DD5BF /* AppGroupContainer.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -109,8 +159,6 @@
 				E30C159C2F50293E0087DEB3 /* suisuinian */,
 			);
 			name = suisuinian;
-			packageProductDependencies = (
-			);
 			productName = suisuinian;
 			productReference = E30C159A2F50293E0087DEB3 /* suisuinian.app */;
 			productType = "com.apple.product-type.application";
@@ -131,8 +179,6 @@
 				E30C15AB2F5029400087DEB3 /* suisuinian Watch App */,
 			);
 			name = "suisuinian Watch App";
-			packageProductDependencies = (
-			);
 			productName = "suisuinian Watch App";
 			productReference = E30C15A72F5029400087DEB3 /* suisuinian Watch App.app */;
 			productType = "com.apple.product-type.application";
@@ -197,6 +243,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3A2D966D5223023CFC316A69 /* NetworkManager.swift in Sources */,
+				73CBF1E9007F82D997B406EE /* APIConfig.swift in Sources */,
+				6C1079887F73EF43C8E07347 /* WatchConnectivityManager.swift in Sources */,
+				5B9D2831F37A422EBB84530E /* AudioRecorder.swift in Sources */,
+				68B099CB3CDE3FC42C1D270E /* CoreModels.swift in Sources */,
+				1B89D3C8B99684C79BE6C001 /* RecordingManager.swift in Sources */,
+				C3796CC4A62073F2473A2A12 /* RecordingDetailView.swift in Sources */,
+				CEF97639349EED0C1DF9964A /* AppGroupContainer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -204,6 +258,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8FFC78BFA0ABFB8FF477FE51 /* NetworkManager.swift in Sources */,
+				58F4EDBFE50A46E917AA7D3D /* APIConfig.swift in Sources */,
+				6E0B1D9FD12532C2E06F7E6D /* WatchConnectivityManager.swift in Sources */,
+				A1AA204DA2DAFCB27809ACBC /* AudioRecorder.swift in Sources */,
+				CFD7DAAEED5A47A7C3056BC9 /* CoreModels.swift in Sources */,
+				DF052CCA9BBA4826A329EE7B /* RecordingManager.swift in Sources */,
+				EC4A5877DC1848C7B46CDBE1 /* WatchRecordingsView.swift in Sources */,
+				FD67A0A954956318E26BC3EA /* AppGroupContainer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -337,11 +399,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "suisuinian Watch App/suisuinianwatch.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = suisuinian;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Suisuinian needs to hear your voice to function.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Suisuinian needs to use Apple Speech Recognition to convert your voice into text.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = rollin.suisuinian;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -361,6 +426,8 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 4;
 				WATCHOS_DEPLOYMENT_TARGET = 26.2;
+				WKAppBundleIdentifier = rollin.suisuinian.watchkitapp;
+				WKCompanionAppBundleIdentifier = rollin.suisuinian;
 			};
 			name = Debug;
 		};
@@ -369,11 +436,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "suisuinian Watch App/suisuinianwatch.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = suisuinian;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Suisuinian needs to hear your voice to function.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Suisuinian needs to use Apple Speech Recognition to convert your voice into text.";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = rollin.suisuinian;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -394,6 +464,8 @@
 				TARGETED_DEVICE_FAMILY = 4;
 				VALIDATE_PRODUCT = YES;
 				WATCHOS_DEPLOYMENT_TARGET = 26.2;
+				WKAppBundleIdentifier = rollin.suisuinian.watchkitapp;
+				WKCompanionAppBundleIdentifier = rollin.suisuinian;
 			};
 			name = Release;
 		};
@@ -402,11 +474,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = suisuinian/suisuinian.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = com.rollin.suisuinian.audioupload;
 				INFOPLIST_KEY_CFBundleDisplayName = suisuinian;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Suisuinian needs to hear your voice to function.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Suisuinian needs to use Apple Speech Recognition to convert your voice into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -436,11 +512,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = suisuinian/suisuinian.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_BGTaskSchedulerPermittedIdentifiers = com.rollin.suisuinian.audioupload;
 				INFOPLIST_KEY_CFBundleDisplayName = suisuinian;
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Suisuinian needs to hear your voice to function.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Suisuinian needs to use Apple Speech Recognition to convert your voice into text.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
