@@ -323,19 +323,32 @@ struct ReportDetailView: View {
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if let attr = try? AttributedString(markdown: report.markdownContent) {
-                    Text(attr).font(.body)
-                } else {
-                    Text(report.markdownContent).font(.body)
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text(LocalizedStringKey(report.markdownContent))
+                        .font(.body)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
                 }
             }
-            .padding()
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .textSelection(.enabled)
+            .navigationTitle("Daily Report")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Close") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        UIPasteboard.general.string = report.markdownContent
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                }
+            }
         }
-        .navigationTitle("Today's Report")
     }
 }
 
