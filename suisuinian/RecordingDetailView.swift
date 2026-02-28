@@ -9,6 +9,7 @@ struct TranscriptionSegment: Identifiable {
     let text: String
     let timestamp: TimeInterval   // start time in seconds
     let duration: TimeInterval
+    let speaker: String?          // Added to represent Diarization info
 }
 
 @MainActor
@@ -21,6 +22,12 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
     @Published var duration: TimeInterval = 0
     @Published var errorMessage: String?
     @Published var transcriptionStatus: String = "Transcribing..."
+    @Published var isTranscriptIncomplete = false
+
+    // AI Summary
+    @Published var summary: String?          // Markdown text from OpenClaw
+    @Published var isSummarizing = false
+    @Published var summaryError: String?
 
     // MARK: - Private
     private var audioPlayer: AVAudioPlayer?
@@ -96,76 +103,245 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
         }
     }
 
-    // MARK: - ASR
-    func startTranscription() {
-        isTranscribing = true
-        transcriptionStatus = "Requesting permission..."
-        errorMessage = nil
+    // MARK: - Transcript persistence
+    private var transcriptFileURL: URL {
+        url.deletingPathExtension().appendingPathExtension("transcript")
+    }
+    private func saveTranscript(_ text: String) {
+        try? text.write(to: transcriptFileURL, atomically: true, encoding: .utf8)
+    }
+    private func loadSavedTranscript() -> String? {
+        guard let text = try? String(contentsOf: transcriptFileURL, encoding: .utf8),
+              !text.isEmpty else { return nil }
+        return text
+    }
+    private func checkCompleteness(_ text: String) -> Bool {
+        let dur = audioPlayer?.duration ?? 0
+        guard dur > 0 else { return false }
+        return Double(text.count) / dur < 1.0  // < 1 char/sec = suspicious
+    }
 
-        SFSpeechRecognizer.requestAuthorization { [weak self] authStatus in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                if authStatus == .authorized {
-                    self.performTranscription()
+    // MARK: - ASR entry point
+    func startTranscription() {
+        errorMessage = nil
+        if let saved = loadSavedTranscript() {
+            let words = saved.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+            segments = words.enumerated().map { i, w in
+                TranscriptionSegment(text: w, timestamp: Double(i) * 0.4, duration: 0.35, speaker: nil)
+            }
+            transcriptionStatus = "Loaded from cache"
+            isTranscribing = false
+            isTranscriptIncomplete = checkCompleteness(saved)
+            if summary == nil { summarize(transcript: saved) }
+            return
+        }
+        isTranscribing = true
+        isTranscriptIncomplete = false
+        transcriptionStatus = "Connecting to Mac transcription service…"
+        Task { await performTranscription() }
+    }
+
+    func retranscribe() {
+        // Clear existing transcript file
+        try? FileManager.default.removeItem(at: transcriptFileURL)
+        // Reset state
+        summary = nil
+        summaryError = nil
+        segments = .init()
+        isSummarizing = false
+        chatMessages = .init()
+        chatSessionId = nil
+        transcriptContext = nil
+        
+        // Start fresh
+        isTranscribing = true
+        isTranscriptIncomplete = false
+        transcriptionStatus = "Re-transcribing via Mac service…"
+        Task { await performTranscription() }
+    }
+
+    func continueTranscription() {
+        isTranscribing = true
+        isTranscriptIncomplete = false
+        transcriptionStatus = "Continuing transcription…"
+        Task { await performTranscription() }
+    }
+
+    // MARK: - Transcription via Mac proxy (mlx-whisper)
+    private static let proxyTranscribeURL = URL(string: "http://127.0.0.1:19001/transcribe")!
+
+    private func performTranscription() async {
+        do {
+            // Send the local file path to the Mac proxy (simulator shares same filesystem)
+            var req = URLRequest(url: Self.proxyTranscribeURL)
+            req.httpMethod = "POST"
+            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            req.timeoutInterval = 300   // whisper on a 10 MB file can take ~30 s
+            req.httpBody = try JSONEncoder().encode(["filePath": url.path])
+
+            await MainActor.run { transcriptionStatus = "Transcribing via Whisper…" }
+
+            let (data, response) = try await URLSession.shared.data(for: req)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Proxy error"
+                throw NSError(domain: "ASR", code: -1, userInfo: [NSLocalizedDescriptionKey: msg])
+            }
+
+            struct SpeakerSegment: Decodable {
+                let text: String
+                let start: Double
+                let end: Double
+                let speaker: String?
+            }
+            struct Resp: Decodable {
+                let transcript: String
+                let speaker_segments: [SpeakerSegment]?
+            }
+            let resp = try JSONDecoder().decode(Resp.self, from: data)
+            let text = resp.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            var segs: [TranscriptionSegment] = []
+            if let speakerSegments = resp.speaker_segments, !speakerSegments.isEmpty {
+                // Map Pyannote+Whisper merged segments directly
+                segs = speakerSegments.enumerated().map { i, s in
+                    TranscriptionSegment(
+                        text: s.text,
+                        timestamp: s.start,
+                        duration: s.end - s.start,
+                        speaker: s.speaker
+                    )
+                }
+            } else {
+                // Fallback: Build display segments (word-by-word, evenly spread)
+                let words = text.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                segs  = words.enumerated().map { i, w in
+                    TranscriptionSegment(
+                        text: w,
+                        timestamp: Double(i) * 0.4,
+                        duration: 0.35,
+                        speaker: nil
+                    )
+                }
+            }
+
+            await MainActor.run {
+                self.segments = segs
+                self.isTranscribing = false
+                self.transcriptionStatus = "Transcription complete"
+                self.isTranscriptIncomplete = false
+                self.saveTranscript(text)
+                if !text.isEmpty { self.summarize(transcript: text) }
+                else { self.errorMessage = "No speech detected." }
+            }
+        } catch {
+            await MainActor.run {
+                // Proxy unreachable → fall back to on-device SFSpeechRecognizer
+                if (error as NSError).code == NSURLErrorCannotConnectToHost ||
+                   (error as NSError).code == NSURLErrorTimedOut {
+                    self.transcriptionStatus = "Proxy offline — using on-device ASR…"
+                    self.fallbackToSFSpeech()
                 } else {
-                    self.errorMessage = "Speech recognition was not authorized."
+                    self.errorMessage = error.localizedDescription
                     self.isTranscribing = false
                 }
             }
         }
     }
 
-    private func performTranscription() {
-        // Try Chinese first, fall back to device locale
-        let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN"))
-                      ?? SFSpeechRecognizer()
-
-        guard let recognizer, recognizer.isAvailable else {
-            errorMessage = "Speech Recognizer unavailable on this device/simulator."
-            isTranscribing = false
-            return
-        }
-
-        transcriptionStatus = "Recognizing speech ..."
-        let request = SFSpeechURLRecognitionRequest(url: url)
-        request.shouldReportPartialResults = true
-        // Ask for word-level timestamps
-        if #available(iOS 16, *) {
-            request.addsPunctuation = true
-        }
-
-        recognizer.recognitionTask(with: request) { [weak self] result, error in
+    /// Fallback: local SFSpeechRecognizer (works without the Mac proxy)
+    private func fallbackToSFSpeech() {
+        SFSpeechRecognizer.requestAuthorization { [weak self] status in
             DispatchQueue.main.async {
-                guard let self else { return }
-
-                if let result {
-                    // Build segments from low-level SFTranscriptionSegment which includes timing
-                    self.segments = result.bestTranscription.segments.map { seg in
-                        TranscriptionSegment(
-                            text: seg.substring,
-                            timestamp: seg.timestamp,
-                            duration: seg.duration
-                        )
-                    }
-                    if result.isFinal {
-                        self.isTranscribing = false
-                        self.transcriptionStatus = "Transcription complete"
-                    }
+                guard let self, status == .authorized else {
+                    self?.errorMessage = "Speech recognition not authorized."
+                    self?.isTranscribing = false
+                    return
                 }
-
-                if let error {
-                    if self.segments.isEmpty {
-                        self.errorMessage = error.localizedDescription
-                    }
+                guard let recognizer = SFSpeechRecognizer(locale: Locale(identifier: "zh-CN")),
+                      recognizer.isAvailable else {
+                    self.errorMessage = "Speech recognizer unavailable."
                     self.isTranscribing = false
+                    return
+                }
+                let request = SFSpeechURLRecognitionRequest(url: self.url)
+                request.shouldReportPartialResults = true
+                if #available(iOS 16, *) { request.addsPunctuation = true }
+                recognizer.recognitionTask(with: request) { [weak self] result, error in
+                    DispatchQueue.main.async {
+                        guard let self else { return }
+                        if let result {
+                            self.segments = result.bestTranscription.segments.map {
+                                TranscriptionSegment(text: $0.substring, timestamp: $0.timestamp, duration: $0.duration, speaker: nil)
+                            }
+                            if result.isFinal {
+                                self.isTranscribing = false
+                                self.transcriptionStatus = "Transcription complete"
+                                self.summarize(transcript: result.bestTranscription.formattedString)
+                            }
+                        }
+                        if let error { self.errorMessage = error.localizedDescription; self.isTranscribing = false }
+                    }
                 }
             }
         }
+    }
+
+    // MARK: - AI Summary
+    func summarize(transcript: String) {
+        guard !isSummarizing, !transcript.isEmpty else { return }
+        isSummarizing = true
+        summaryError = nil
+        summary = nil
+        Task {
+            do {
+                let result = try await OpenClawSummarizer.summarize(
+                    transcript: transcript, audioPath: url.path)
+                isSummarizing = false
+                summary = result
+            } catch {
+                isSummarizing = false
+                summaryError = error.localizedDescription
+            }
+        }
+    }
+
+    // MARK: - Chat with OpenClaw
+    @Published var chatMessages: [ChatMessage] = []
+    @Published var isSendingChat = false
+    private var chatSessionId: String?          // OpenClaw session for this recording
+    private var transcriptContext: String?       // cached full text for 1st-turn context
+
+    func sendChatMessage(_ text: String) {
+        guard !text.isEmpty else { return }
+        chatMessages.append(ChatMessage(role: .user, text: text))
+        isSendingChat = true
+        let sessionId  = chatSessionId
+        let context    = chatSessionId == nil ? transcriptContext : nil  // only on first turn
+        Task {
+            do {
+                let reply = try await OpenClawSummarizer.chat(
+                    message: text, context: context, sessionId: sessionId)
+                await MainActor.run {
+                    chatSessionId = reply.sessionId
+                    chatMessages.append(ChatMessage(role: .assistant, text: reply.text))
+                    isSendingChat = false
+                }
+            } catch {
+                await MainActor.run {
+                    chatMessages.append(ChatMessage(role: .assistant, text: "⚠️ \(error.localizedDescription)"))
+                    isSendingChat = false
+                }
+            }
+        }
+    }
+
+    /// Call this after transcript is ready to pre-load context for chat
+    func prepareChat(transcript: String) {
+        transcriptContext = transcript
     }
 
     // MARK: - Helpers
     var activeSegmentIndex: Int? {
-        // Find the last segment whose start time is <= currentTime
         let idx = segments.lastIndex(where: { $0.timestamp <= currentTime })
         return idx
     }
@@ -175,6 +351,8 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
 struct RecordingDetailView: View {
     let recording: LocalRecording
     @StateObject private var vm: RecordingDetailViewModel
+    @State private var showChat = false
+    @State private var isSummaryExpanded = false
 
     init(recording: LocalRecording) {
         self.recording = recording
@@ -192,87 +370,259 @@ struct RecordingDetailView: View {
             }
             .padding(.top, 12)
 
-            // ── Karaoke Transcript ───────────────────────────────────────
-            Group {
-                if vm.isTranscribing && vm.segments.isEmpty {
-                    VStack(spacing: 12) {
-                        ProgressView()
-                        Text(vm.transcriptionStatus)
-                            .font(.caption).foregroundStyle(.secondary)
+            if !isSummaryExpanded {
+                // ── Karaoke Transcript ───────────────────────────────────────
+                transcriptArea
+
+                Divider()
+
+                // ── Full Playback Controls ───────────────────────────────────
+                fullPlayer
+            } else {
+                // ── Mini Playback Controls ───────────────────────────────────
+                miniPlayer
+                Divider()
+            }
+
+            // ── Summary Card ─────────────────────────────────────────────
+            summaryCard
+                .frame(maxHeight: isSummaryExpanded ? .infinity : 280, alignment: .top)
+        }
+        .navigationTitle("Voice Note")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                if !vm.segments.isEmpty && !vm.isTranscribing {
+                    Button("重新转译") {
+                        vm.retranscribe()
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if vm.segments.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "waveform.slash")
-                            .font(.largeTitle).foregroundStyle(.secondary)
-                        Text("No transcription yet")
-                            .foregroundStyle(.secondary)
-                        if let err = vm.errorMessage {
-                            Text(err).font(.caption).foregroundColor(.red)
-                                .multilineTextAlignment(.center)
+                    .font(.subheadline)
+                }
+            }
+        }
+        .sheet(isPresented: $showChat) {
+
+            ChatSheetView(vm: vm)
+        }
+        .onAppear {
+            vm.startTranscription()
+        }
+        .onDisappear {
+            vm.stop()
+        }
+    }
+
+    // MARK: - Components
+    @ViewBuilder
+    private var transcriptArea: some View {
+        Group {
+            if vm.isTranscribing && vm.segments.isEmpty {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text(vm.transcriptionStatus)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if vm.segments.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "waveform.slash")
+                        .font(.largeTitle).foregroundStyle(.secondary)
+                    Text("No transcription yet")
+                        .foregroundStyle(.secondary)
+                    if let err = vm.errorMessage {
+                        Text(err).font(.caption).foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                // Karaoke transcript with word highlighting
+                VStack(spacing: 0) {
+                    // Incomplete-transcript banner
+                    if vm.isTranscriptIncomplete {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text("转录可能不完整")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Spacer()
+                            Button("继续转译") { vm.continueTranscription() }
+                                .font(.caption).buttonStyle(.borderedProminent)
+                                .tint(.orange)
                         }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1))
+                        Divider()
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    KaraokeTextView(segments: vm.segments,
-                                   activeIndex: vm.activeSegmentIndex) { tappedIndex in
+                    if vm.isTranscribing {
+                        HStack(spacing: 8) {
+                            ProgressView().scaleEffect(0.7)
+                            Text(vm.transcriptionStatus)
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                    }
+                    KaraokeTextView(
+                        segments: vm.segments,
+                        activeIndex: vm.activeSegmentIndex
+                    ) { tappedIndex in
                         vm.seek(to: vm.segments[tappedIndex].timestamp)
                         if !vm.isPlaying { vm.togglePlayback() }
                     }
                 }
             }
+        }
+        .padding(.horizontal)
+        .frame(maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var fullPlayer: some View {
+        VStack(spacing: 4) {
+            Slider(value: Binding(
+                get: { vm.currentTime },
+                set: { vm.seek(to: $0) }
+            ), in: 0...max(vm.duration, 1))
             .padding(.horizontal)
-            .frame(maxHeight: .infinity)
 
-            Divider()
+            HStack {
+                Text(formatTime(vm.currentTime))
+                Spacer()
+                Text(formatTime(vm.duration))
+            }
+            .font(.caption2).monospacedDigit()
+            .foregroundStyle(.secondary)
+            .padding(.horizontal)
+        }
+        .padding(.top, 8)
 
-            // ── Progress Slider ──────────────────────────────────────────
-            VStack(spacing: 4) {
-                Slider(value: Binding(
-                    get: { vm.currentTime },
-                    set: { vm.seek(to: $0) }
-                ), in: 0...max(vm.duration, 1))
-                .padding(.horizontal)
+        HStack(spacing: 32) {
+            Button { vm.seekRelative(-10) } label: { Image(systemName: "gobackward.10").font(.title2) }
+            Button { vm.togglePlayback() } label: {
+                Image(systemName: vm.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 60))
+                    .foregroundStyle(.blue)
+            }
+            Button { vm.seekRelative(10) } label: { Image(systemName: "goforward.10").font(.title2) }
+        }
+        .padding(.vertical, 16)
+    }
 
-                HStack {
-                    Text(formatTime(vm.currentTime))
-                    Spacer()
-                    Text(formatTime(vm.duration))
-                }
-                .font(.caption2).monospacedDigit()
+    @ViewBuilder
+    private var miniPlayer: some View {
+        HStack(spacing: 12) {
+            Button { vm.togglePlayback() } label: {
+                Image(systemName: vm.isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.title)
+                    .foregroundStyle(.blue)
+            }
+            Slider(value: Binding(
+                get: { vm.currentTime },
+                set: { vm.seek(to: $0) }
+            ), in: 0...max(vm.duration, 1))
+            Text(formatTime(vm.currentTime))
+                .font(.caption).monospacedDigit()
                 .foregroundStyle(.secondary)
-                .padding(.horizontal)
-            }
-            .padding(.top, 8)
-
-            // ── Playback Controls ────────────────────────────────────────
-            HStack(spacing: 32) {
-                Button { vm.seekRelative(-10) } label: {
-                    Image(systemName: "gobackward.10")
-                        .font(.title2)
-                }
-
-                Button { vm.togglePlayback() } label: {
-                    Image(systemName: vm.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 60))
-                        .foregroundStyle(.blue)
-                }
-
-                Button { vm.seekRelative(10) } label: {
-                    Image(systemName: "goforward.10")
-                        .font(.title2)
-                }
-            }
-            .padding(.vertical, 16)
         }
-        .navigationTitle("Voice Note")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            // Auto-start ASR when the view opens
-            vm.startTranscription()
-        }
-        .onDisappear {
-            vm.stop()
+        .padding(.horizontal)
+        .padding(.vertical, 10)
+    }
+
+    // MARK: - AI Summary Card
+    @ViewBuilder
+    private var summaryCard: some View {
+        if vm.isSummarizing || vm.summary != nil || vm.summaryError != nil {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain")
+                        .foregroundStyle(.white)
+                        .padding(6)
+                        .background(Color.purple)
+                        .clipShape(Circle())
+                    Text("AI 总结")
+                        .font(.headline).fontWeight(.bold)
+                    Spacer()
+                    if vm.isSummarizing {
+                        ProgressView().scaleEffect(0.8)
+                    } else if vm.summary != nil {
+                        Button {
+                            // Seed context if not already set
+                            let transcript = vm.segments.map(\.text).joined(separator: " ")
+                            vm.prepareChat(transcript: transcript)
+                            showChat = true
+                        } label: {
+                            Label("继续聊", systemImage: "sparkles")
+                                .font(.caption).fontWeight(.semibold)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.purple)
+                        .controlSize(.mini)
+                        
+                        // Expand/Collapse Toggle
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                isSummaryExpanded.toggle()
+                            }
+                        } label: {
+                            Image(systemName: isSummaryExpanded ? "chevron.down" : "chevron.up")
+                                .font(.subheadline).bold()
+                                .foregroundStyle(.secondary)
+                                .padding(6)
+                                .background(Color(UIColor.tertiarySystemFill))
+                                .clipShape(Circle())
+                        }
+                        .padding(.leading, 4)
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if vm.summary != nil {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            isSummaryExpanded.toggle()
+                        }
+                    }
+                }
+
+                if vm.isSummarizing {
+                    Text("OpenClaw 正在处理…")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if let summary = vm.summary {
+                    ScrollView {
+                        Group {
+                            if let attr = try? AttributedString(
+                                markdown: summary,
+                                options: AttributedString.MarkdownParsingOptions(
+                                    interpretedSyntax: .inlineOnlyPreservingWhitespace
+                                )
+                            ) {
+                                Text(attr)
+                            } else {
+                                Text(summary)
+                            }
+                        }
+                        .font(.callout)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .textSelection(.enabled)
+                    }
+                    .frame(maxHeight: .infinity)
+                } else if let err = vm.summaryError {
+                    HStack {
+                        Text("❌ \(err)")
+                            .font(.caption).foregroundStyle(.red)
+                        Spacer()
+                        Button("重试") {
+                            let full = vm.segments.map { $0.text }.joined(separator: " ")
+                            vm.summarize(transcript: full)
+                        }
+                        .font(.caption).buttonStyle(.bordered)
+                    }
+                }
+            }
+            .padding(14)
+            .background(Color(UIColor.secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.05), radius: 8, y: -2)
+            .padding([.horizontal, .bottom], 12)
         }
     }
 
@@ -283,88 +633,100 @@ struct RecordingDetailView: View {
     }
 }
 
-// MARK: - Karaoke word-flow view
+// MARK: - Karaoke word-highlight view (Groups by Speaker)
 struct KaraokeTextView: View {
     let segments: [TranscriptionSegment]
     let activeIndex: Int?
     let onTap: (Int) -> Void
+    
+    // Group segments by speaker blocks to render them with labels
+    // We store the global index so we can still highlight correctly
+    struct SpeakerBlock: Identifiable {
+        let id = UUID()
+        let speakerName: String
+        var words: [(globalIndex: Int, segment: TranscriptionSegment)]
+    }
+    
+    private var speakerBlocks: [SpeakerBlock] {
+        var blocks: [SpeakerBlock] = []
+        var currentBlock: SpeakerBlock?
+        
+        for (i, seg) in segments.enumerated() {
+            let spk = seg.speaker ?? "说话人"
+            if currentBlock?.speakerName == spk {
+                currentBlock?.words.append((i, seg))
+            } else {
+                if let cb = currentBlock { blocks.append(cb) }
+                currentBlock = SpeakerBlock(speakerName: spk, words: [(i, seg)])
+            }
+        }
+        if let cb = currentBlock { blocks.append(cb) }
+        return blocks
+    }
+
+    private func attributedString(for words: [(globalIndex: Int, segment: TranscriptionSegment)]) -> AttributedString {
+        var result = AttributedString()
+        for (idx, item) in words.enumerated() {
+            var word = AttributedString(item.segment.text)
+            let gIdx = item.globalIndex
+            if gIdx == activeIndex {
+                word.foregroundColor = .systemBlue
+                word.font = UIFont.boldSystemFont(ofSize: UIFont.preferredFont(forTextStyle: .body).pointSize)
+            } else if let active = activeIndex, gIdx < active {
+                word.foregroundColor = .secondaryLabel
+            } else {
+                word.foregroundColor = .label
+            }
+            result += word
+            if idx < words.count - 1 {
+                var space = AttributedString(" ")
+                space.foregroundColor = .label
+                result += space
+            }
+        }
+        return result
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                // Use a flow layout via wrapping HStack in a lazy grid workaround
-                FlowLayout(spacing: 6) {
-                    ForEach(Array(segments.enumerated()), id: \.element.id) { idx, seg in
-                        Text(seg.text)
-                            .font(.title3)
-                            .fontWeight(idx == activeIndex ? .bold : .regular)
-                            .foregroundStyle(
-                                idx == activeIndex ? Color.blue :
-                                (activeIndex != nil && idx < activeIndex! ? Color.secondary : Color.primary)
-                            )
-                            .padding(.vertical, 2)
-                            .id(seg.id)
-                            .onTapGesture { onTap(idx) }
-                            .animation(.easeInOut(duration: 0.2), value: activeIndex)
+                VStack(alignment: .leading, spacing: 16) {
+                    ForEach(speakerBlocks) { block in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(block.speakerName)
+                                .font(.caption.bold())
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color(UIColor.tertiarySystemFill))
+                                .clipShape(Capsule())
+                            
+                            Text(attributedString(for: block.words))
+                                .font(.body)
+                                .lineSpacing(6)
+                                .onTapGesture {
+                                    // Optionally: tap on a block could jump to its first word
+                                    if let first = block.words.first {
+                                        onTap(first.globalIndex)
+                                    }
+                                }
+                        }
+                        .id("block-\(block.words.first?.globalIndex ?? 0)")
+                    }
+                    
+                    // Invisible anchor at the active position for auto-scroll
+                    if let idx = activeIndex, idx < segments.count {
+                        Color.clear.frame(height: 0).id("active")
                     }
                 }
-                .padding(.vertical, 16)
+                .padding(.vertical, 12)
+                .animation(.easeInOut(duration: 0.15), value: activeIndex)
             }
-            .onChange(of: activeIndex) { _, newIdx in
-                if let newIdx, newIdx < segments.count {
-                    withAnimation(.easeInOut) {
-                        proxy.scrollTo(segments[newIdx].id, anchor: .center)
-                    }
+            .onChange(of: activeIndex) { _, _ in
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    proxy.scrollTo("active", anchor: .center)
                 }
             }
         }
-    }
-}
-
-// MARK: - Simple flow layout (word-wrap)
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 4
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let rows = computeRows(proposal: proposal, subviews: subviews)
-        let rowHeights: [CGFloat] = rows.map { row -> CGFloat in
-            let h: CGFloat = row.map { sv -> CGFloat in sv.sizeThatFits(.unspecified).height }.max() ?? 0
-            return h
-        }
-        let totalRowHeight: CGFloat = rowHeights.reduce(0, +)
-        let gapHeight: CGFloat = CGFloat(max(rows.count - 1, 0)) * spacing
-        let height: CGFloat = totalRowHeight + gapHeight
-        return CGSize(width: proposal.width ?? 0, height: height)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let rows = computeRows(proposal: proposal, subviews: subviews)
-        var y = bounds.minY
-        for row in rows {
-            var x = bounds.minX
-            let rowH = row.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
-            for sv in row {
-                let sz = sv.sizeThatFits(.unspecified)
-                sv.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(sz))
-                x += sz.width + spacing
-            }
-            y += rowH + spacing
-        }
-    }
-
-    private func computeRows(proposal: ProposedViewSize, subviews: Subviews) -> [[LayoutSubview]] {
-        var rows: [[LayoutSubview]] = [[]]
-        var x: CGFloat = 0
-        let maxW = proposal.width ?? .infinity
-        for sv in subviews {
-            let w = sv.sizeThatFits(.unspecified).width
-            if x + w > maxW, !rows[rows.endIndex - 1].isEmpty {
-                rows.append([])
-                x = 0
-            }
-            rows[rows.endIndex - 1].append(sv)
-            x += w + spacing
-        }
-        return rows
     }
 }

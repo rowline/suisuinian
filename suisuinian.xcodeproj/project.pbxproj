@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1B89D3C8B99684C79BE6C001 /* RecordingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 392CF431F24B3ADE70C3BCA5 /* RecordingManager.swift */; };
 		3A2D966D5223023CFC316A69 /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8D85F11B9A012DD0AE0B1B3 /* NetworkManager.swift */; };
+		4380B14D17A5810E6A7EC965 /* OpenClawSummarizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C8F48953ECE029E6A9BB6B /* OpenClawSummarizer.swift */; };
 		58F4EDBFE50A46E917AA7D3D /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D6DAF581F675380C79C8237 /* APIConfig.swift */; };
 		5B9D2831F37A422EBB84530E /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7FC95BF4D671B48EFB5FD4 /* AudioRecorder.swift */; };
 		68B099CB3CDE3FC42C1D270E /* CoreModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26EEDC399D9EB18D1766DDE1 /* CoreModels.swift */; };
@@ -16,6 +17,7 @@
 		6E0B1D9FD12532C2E06F7E6D /* WatchConnectivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0686A467C8AFB9C1F4AD5AD6 /* WatchConnectivityManager.swift */; };
 		73CBF1E9007F82D997B406EE /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D6DAF581F675380C79C8237 /* APIConfig.swift */; };
 		8FFC78BFA0ABFB8FF477FE51 /* NetworkManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8D85F11B9A012DD0AE0B1B3 /* NetworkManager.swift */; };
+		925CDD628264E14169CBE831 /* ChatSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DA3734BF90246655D09D688 /* ChatSheetView.swift */; };
 		A1AA204DA2DAFCB27809ACBC /* AudioRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B7FC95BF4D671B48EFB5FD4 /* AudioRecorder.swift */; };
 		C3796CC4A62073F2473A2A12 /* RecordingDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99B2D023BC0B558123FB57F7 /* RecordingDetailView.swift */; };
 		CEF97639349EED0C1DF9964A /* AppGroupContainer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9E07AB6F8D96D6C194DD5BF /* AppGroupContainer.swift */; };
@@ -56,6 +58,7 @@
 		392CF431F24B3ADE70C3BCA5 /* RecordingManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RecordingManager.swift; sourceTree = "<group>"; };
 		4699ECFFCECB10D806A3354C /* suisuinian.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = suisuinian.entitlements; path = suisuinian/suisuinian.entitlements; sourceTree = "<group>"; };
 		7B7FC95BF4D671B48EFB5FD4 /* AudioRecorder.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AudioRecorder.swift; sourceTree = "<group>"; };
+		7DA3734BF90246655D09D688 /* ChatSheetView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ChatSheetView.swift; path = suisuinian/ChatSheetView.swift; sourceTree = "<group>"; };
 		99B2D023BC0B558123FB57F7 /* RecordingDetailView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = RecordingDetailView.swift; path = suisuinian/RecordingDetailView.swift; sourceTree = "<group>"; };
 		9D6DAF581F675380C79C8237 /* APIConfig.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		A9E07AB6F8D96D6C194DD5BF /* AppGroupContainer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppGroupContainer.swift; path = Shared/AppGroupContainer.swift; sourceTree = "<group>"; };
@@ -64,6 +67,7 @@
 		D08D8868E538B60F57D78391 /* suisuinianwatch.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = suisuinianwatch.entitlements; path = "suisuinian Watch App/suisuinianwatch.entitlements"; sourceTree = "<group>"; };
 		E30C159A2F50293E0087DEB3 /* suisuinian.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = suisuinian.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E30C15A72F5029400087DEB3 /* suisuinian Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "suisuinian Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E3C8F48953ECE029E6A9BB6B /* OpenClawSummarizer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = OpenClawSummarizer.swift; path = suisuinian/OpenClawSummarizer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -126,6 +130,8 @@
 				4699ECFFCECB10D806A3354C /* suisuinian.entitlements */,
 				D08D8868E538B60F57D78391 /* suisuinianwatch.entitlements */,
 				A9E07AB6F8D96D6C194DD5BF /* AppGroupContainer.swift */,
+				E3C8F48953ECE029E6A9BB6B /* OpenClawSummarizer.swift */,
+				7DA3734BF90246655D09D688 /* ChatSheetView.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -251,6 +257,8 @@
 				1B89D3C8B99684C79BE6C001 /* RecordingManager.swift in Sources */,
 				C3796CC4A62073F2473A2A12 /* RecordingDetailView.swift in Sources */,
 				CEF97639349EED0C1DF9964A /* AppGroupContainer.swift in Sources */,
+				4380B14D17A5810E6A7EC965 /* OpenClawSummarizer.swift in Sources */,
+				925CDD628264E14169CBE831 /* ChatSheetView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
