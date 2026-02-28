@@ -4,12 +4,12 @@ import Speech
 import Combine
 
 // Represents one transcribed segment with timing info
-struct TranscriptionSegment: Identifiable {
-    let id = UUID()
-    let text: String
-    let timestamp: TimeInterval   // start time in seconds
-    let duration: TimeInterval
-    let speaker: String?          // Added to represent Diarization info
+struct TranscriptionSegment: Identifiable, Codable {
+    var id = UUID()
+    var text: String
+    var timestamp: TimeInterval   // start time in seconds
+    var duration: TimeInterval
+    var speaker: String?          // Added to represent Diarization info
 }
 
 @MainActor
@@ -103,18 +103,64 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
         }
     }
 
-    // MARK: - Transcript persistence
+    // MARK: - Transcript & Chat persistence
     private var transcriptFileURL: URL {
         url.deletingPathExtension().appendingPathExtension("transcript")
     }
-    private func saveTranscript(_ text: String) {
-        try? text.write(to: transcriptFileURL, atomically: true, encoding: .utf8)
+    private var chatFileURL: URL {
+        url.deletingPathExtension().appendingPathExtension("chat")
     }
-    private func loadSavedTranscript() -> String? {
-        guard let text = try? String(contentsOf: transcriptFileURL, encoding: .utf8),
-              !text.isEmpty else { return nil }
-        return text
+
+    struct SavedTranscript: Codable {
+        let transcript: String
+        let speaker_segments: [SpeakerSegment]?
+        
+        struct SpeakerSegment: Codable {
+            let text: String
+            let start: Double
+            let end: Double
+            let speaker: String?
+        }
     }
+
+    struct ChatState: Codable {
+        var messages: [ChatMessage]
+        var sessionId: String?
+    }
+
+    private func saveTranscript(_ text: String, segments: [TranscriptionSegment]) {
+        let speakerSegments = segments.map { 
+            SavedTranscript.SpeakerSegment(text: $0.text, start: $0.timestamp, end: $0.timestamp + $0.duration, speaker: $0.speaker)
+        }
+        let saved = SavedTranscript(transcript: text, speaker_segments: speakerSegments)
+        if let data = try? JSONEncoder().encode(saved) {
+            try? data.write(to: transcriptFileURL)
+        }
+    }
+    
+    private func loadSavedTranscript() -> SavedTranscript? {
+        guard let data = try? Data(contentsOf: transcriptFileURL) else { return nil }
+        if let saved = try? JSONDecoder().decode(SavedTranscript.self, from: data) { return saved }
+        if let text = String(data: data, encoding: .utf8), !text.isEmpty, !text.hasPrefix("{") {
+            return SavedTranscript(transcript: text, speaker_segments: nil)
+        }
+        return nil
+    }
+
+    private func saveChatHistory() {
+        let state = ChatState(messages: chatMessages, sessionId: chatSessionId)
+        if let data = try? JSONEncoder().encode(state) {
+            try? data.write(to: chatFileURL)
+        }
+    }
+    
+    private func loadChatHistory() {
+        guard let data = try? Data(contentsOf: chatFileURL),
+              let state = try? JSONDecoder().decode(ChatState.self, from: data) else { return }
+        self.chatMessages = state.messages
+        self.chatSessionId = state.sessionId
+    }
+
     private func checkCompleteness(_ text: String) -> Bool {
         let dur = audioPlayer?.duration ?? 0
         guard dur > 0 else { return false }
@@ -124,15 +170,22 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
     // MARK: - ASR entry point
     func startTranscription() {
         errorMessage = nil
+        loadChatHistory()
         if let saved = loadSavedTranscript() {
-            let words = saved.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
-            segments = words.enumerated().map { i, w in
-                TranscriptionSegment(text: w, timestamp: Double(i) * 0.4, duration: 0.35, speaker: nil)
+            if let speakerSegments = saved.speaker_segments, !speakerSegments.isEmpty {
+                segments = speakerSegments.map {
+                    TranscriptionSegment(text: $0.text, timestamp: $0.start, duration: $0.end - $0.start, speaker: $0.speaker)
+                }
+            } else {
+                let words = saved.transcript.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
+                segments = words.enumerated().map { i, w in
+                    TranscriptionSegment(text: w, timestamp: Double(i) * 0.4, duration: 0.35, speaker: nil)
+                }
             }
             transcriptionStatus = "Loaded from cache"
             isTranscribing = false
-            isTranscriptIncomplete = checkCompleteness(saved)
-            if summary == nil { summarize(transcript: saved) }
+            isTranscriptIncomplete = checkCompleteness(saved.transcript)
+            if summary == nil { summarize(transcript: saved.transcript) }
             return
         }
         isTranscribing = true
@@ -153,11 +206,14 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
         chatSessionId = nil
         transcriptContext = nil
         
+        // Also remove chat history
+        try? FileManager.default.removeItem(at: chatFileURL)
+        
         // Start fresh
         isTranscribing = true
         isTranscriptIncomplete = false
         transcriptionStatus = "Re-transcribing via Mac service…"
-        Task { await performTranscription() }
+        Task { await performTranscription(force: true) }
     }
 
     func continueTranscription() {
@@ -170,34 +226,41 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
     // MARK: - Transcription via Mac proxy (mlx-whisper)
     private static let proxyTranscribeURL = URL(string: "http://127.0.0.1:19001/transcribe")!
 
-    private func performTranscription() async {
+    struct ProxyTranscriptionResponse: Decodable {
+        let transcript: String
+        let speaker_segments: [SpeakerSegment]?
+        
+        struct SpeakerSegment: Decodable {
+            let text: String
+            let start: Double
+            let end: Double
+            let speaker: String?
+        }
+    }
+
+    static func proxyTranscribe(fileURL: URL, force: Bool = false) async throws -> ProxyTranscriptionResponse {
+        var req = URLRequest(url: proxyTranscribeURL)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 300
+        
+        struct ReqBody: Encodable { let filePath: String; let force: Bool }
+        req.httpBody = try JSONEncoder().encode(ReqBody(filePath: fileURL.path, force: force))
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+            let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Proxy error"
+            throw NSError(domain: "ASR", code: -1, userInfo: [NSLocalizedDescriptionKey: msg])
+        }
+
+        return try JSONDecoder().decode(ProxyTranscriptionResponse.self, from: data)
+    }
+
+    private func performTranscription(force: Bool = false) async {
         do {
-            // Send the local file path to the Mac proxy (simulator shares same filesystem)
-            var req = URLRequest(url: Self.proxyTranscribeURL)
-            req.httpMethod = "POST"
-            req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            req.timeoutInterval = 300   // whisper on a 10 MB file can take ~30 s
-            req.httpBody = try JSONEncoder().encode(["filePath": url.path])
-
             await MainActor.run { transcriptionStatus = "Transcribing via Whisper…" }
-
-            let (data, response) = try await URLSession.shared.data(for: req)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-                let msg = (try? JSONDecoder().decode([String: String].self, from: data))?["error"] ?? "Proxy error"
-                throw NSError(domain: "ASR", code: -1, userInfo: [NSLocalizedDescriptionKey: msg])
-            }
-
-            struct SpeakerSegment: Decodable {
-                let text: String
-                let start: Double
-                let end: Double
-                let speaker: String?
-            }
-            struct Resp: Decodable {
-                let transcript: String
-                let speaker_segments: [SpeakerSegment]?
-            }
-            let resp = try JSONDecoder().decode(Resp.self, from: data)
+            
+            let resp = try await Self.proxyTranscribe(fileURL: url, force: force)
             let text = resp.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
 
             var segs: [TranscriptionSegment] = []
@@ -229,7 +292,7 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
                 self.isTranscribing = false
                 self.transcriptionStatus = "Transcription complete"
                 self.isTranscriptIncomplete = false
-                self.saveTranscript(text)
+                self.saveTranscript(text, segments: segs)
                 if !text.isEmpty { self.summarize(transcript: text) }
                 else { self.errorMessage = "No speech detected." }
             }
@@ -241,7 +304,7 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
                     self.transcriptionStatus = "Proxy offline — using on-device ASR…"
                     self.fallbackToSFSpeech()
                 } else {
-                    self.errorMessage = error.localizedDescription
+                    self.errorMessage = "Mac Proxy Error: \(error.localizedDescription)"
                     self.isTranscribing = false
                 }
             }
@@ -276,6 +339,7 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
                             if result.isFinal {
                                 self.isTranscribing = false
                                 self.transcriptionStatus = "Transcription complete"
+                                self.saveTranscript(result.bestTranscription.formattedString, segments: self.segments)
                                 self.summarize(transcript: result.bestTranscription.formattedString)
                             }
                         }
@@ -314,22 +378,32 @@ class RecordingDetailViewModel: NSObject, ObservableObject, AVAudioPlayerDelegat
     func sendChatMessage(_ text: String) {
         guard !text.isEmpty else { return }
         chatMessages.append(ChatMessage(role: .user, text: text))
+        saveChatHistory()
         isSendingChat = true
         let sessionId  = chatSessionId
-        let context    = chatSessionId == nil ? transcriptContext : nil  // only on first turn
+        
+        let finalMessage: String
+        if chatSessionId == nil, let ctx = transcriptContext {
+            finalMessage = "以下是一段录音的转录内容，请根据这段内容回答我的问题。\n\n【转录内容】\n\(ctx)\n\n【我的问题】\n\(text)"
+        } else {
+            finalMessage = text
+        }
+        
         Task {
             do {
                 let reply = try await OpenClawSummarizer.chat(
-                    message: text, context: context, sessionId: sessionId)
+                    message: finalMessage, useGlobalScope: false, sessionId: sessionId)
                 await MainActor.run {
                     chatSessionId = reply.sessionId
                     chatMessages.append(ChatMessage(role: .assistant, text: reply.text))
                     isSendingChat = false
+                    saveChatHistory()
                 }
             } catch {
                 await MainActor.run {
                     chatMessages.append(ChatMessage(role: .assistant, text: "⚠️ \(error.localizedDescription)"))
                     isSendingChat = false
+                    saveChatHistory()
                 }
             }
         }
@@ -679,8 +753,9 @@ struct KaraokeTextView: View {
             }
             result += word
             if idx < words.count - 1 {
-                var space = AttributedString(" ")
-                space.foregroundColor = .label
+                var space = AttributedString("\n")
+                space.foregroundColor = .clear
+                space.font = .system(size: 8)
                 result += space
             }
         }

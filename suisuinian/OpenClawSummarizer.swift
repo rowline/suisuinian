@@ -14,10 +14,19 @@ enum OpenClawSummarizer {
         return resp.summary
     }
 
+    // MARK: - Daily Summarize
+    static func dailySummarize(transcripts: [String], dateString: String) async throws -> String {
+        struct Body: Encodable { let transcripts: [String]; let dateString: String }
+        struct Resp: Decodable { let summary: String }
+        let resp: Resp = try await post(path: "/daily_summarize",
+                                        body: Body(transcripts: transcripts, dateString: dateString))
+        return resp.summary
+    }
+
     // MARK: - Chat (stateful session)
-    static func chat(message: String, context: String?, sessionId: String?) async throws -> ChatReply {
-        struct Body: Encodable { let message: String; let context: String?; let sessionId: String? }
-        let body = Body(message: message, context: context, sessionId: sessionId)
+    static func chat(message: String, useGlobalScope: Bool?, sessionId: String?) async throws -> ChatReply {
+        struct Body: Encodable { let message: String; let useGlobalScope: Bool?; let sessionId: String? }
+        let body = Body(message: message, useGlobalScope: useGlobalScope, sessionId: sessionId)
         return try await post(path: "/chat", body: body)
     }
 

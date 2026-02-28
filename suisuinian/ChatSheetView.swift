@@ -1,13 +1,13 @@
 import SwiftUI
 
 // MARK: - Model
-struct ChatMessage: Identifiable {
-    let id = UUID()
-    let role: Role
-    let text: String
-    let date = Date()
+struct ChatMessage: Identifiable, Codable {
+    var id = UUID()
+    var role: Role
+    var text: String
+    var date = Date()
 
-    enum Role { case user, assistant }
+    enum Role: String, Codable { case user, assistant }
 }
 
 // MARK: - Chat Sheet View
